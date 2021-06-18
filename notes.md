@@ -64,3 +64,14 @@ blocks.rs: block trait
 example: dummy block
 
 registerRustBlock (it's a hack)
+
+----
+
+TODO:
+- need to categorize blocks (low-level, core, high-level, other categories).
+  - Most users will only use high-level blocks, only experts will use low-level ones (as it then become almost like programming)
+- need a way to have a non-tech user-friendly documentation mostly based on visuals and another kind of doc very technical
+  - for instance animated image/video showing example usage of the block from within the VR/3D interface
+  - (ideally generating such animations could be automated)
+
+- Use AI to generate the interactive documentation (animation track)
