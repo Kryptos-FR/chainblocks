@@ -37,6 +37,13 @@ private:
   };
 };
 
+// TODO:
+// store data from the atlas definition
+// pre-allocate 'n' images with correct size
+// for now dummily copy data from the input images into those separate images
+// (while checking that input image is big enough, if not, don't do anything
+// (empty list of images))
+
 struct AtlasPage : TableVar {
   AtlasPage() : TableVar(), regions(get<SeqVar>(":region")) {}
 
@@ -47,6 +54,8 @@ struct AtlasPage : TableVar {
 
   SeqVar &regions;
 };
+
+struct AtlasRegion {};
 
 struct Sheet {
 
@@ -66,7 +75,7 @@ struct Sheet {
     switch (index) {
     case 0:
       // FIXME
-      //return Var(_images);
+      // return Var(_images);
       return Var::Empty;
     case 1:
       return Var(_pages);
@@ -127,7 +136,7 @@ struct Sheet {
       }
       break;
     }
-    
+
     default:
       break;
     }
