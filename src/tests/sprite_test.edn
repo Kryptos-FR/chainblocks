@@ -2,9 +2,11 @@
 (defchain sprite_test
   "sprite.edn"
   (LoadImage "data/skeleton.png") = .image
+  (read-string (slurp "data/skeleton.edn")) = .atlas
   (Sprite.Sheet
    :Image .image
-   :Atlas (read-string (slurp "data/skeleton.edn"))))
+   :Atlas .atlas) = .sheet
+  .sheet (Sprite.Draw))
 
 (schedule main sprite_test)
 (run main)

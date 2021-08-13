@@ -1,3 +1,4 @@
+#include "bgfx.hpp"
 #include "blocks/shared.hpp"
 
 namespace chainblocks {
@@ -56,72 +57,86 @@ struct Sheet {
   }
 
   CBVar activate(CBContext *context, const CBVar &input) {
-    // read the atlas data
-    if (_atlas.isVariable()) {
-      // FIXME: no idea what to do. How to retrieve the actual value behind the
-      // variable?
-    } else {
-      auto table = _atlas.get().payload.tableValue;
+    auto table = _atlas.get().payload.tableValue;
+    auto api = table.api;
+
+    this->_name = api->tableAt(table, "name")->payload.stringValue;
+
+    auto size = api->tableAt(table, "size")->payload.seqValue;
+    this->_width = size.elements[0].payload.intValue;
+    this->_height = size.elements[1].payload.intValue;
+
+    this->_format = api->tableAt(table, "format")->payload.stringValue;
+
+    auto filter = api->tableAt(table, "filter")->payload.seqValue;
+    this->_minFilter = filter.elements[0].payload.stringValue;
+    this->_magFilter = filter.elements[1].payload.stringValue;
+
+    auto repeat = api->tableAt(table, "repeat")->payload.seqValue;
+    this->_u_repeat = repeat.elements[0].payload.stringValue;
+    this->_v_repeat = repeat.elements[1].payload.stringValue;
+
+    this->_premultiply = api->tableAt(table, "pma")->payload.boolValue;
+
+    auto regions = api->tableAt(table, "regions")->payload.seqValue;
+    this->_regions.reserve(regions.len);
+    for (uint32_t i = 0; i < regions.len; ++i) {
+      auto table = regions.elements[i].payload.tableValue;
       auto api = table.api;
 
-      this->_name = api->tableAt(table, "name")->payload.stringValue;
+      auto region = Region{};
 
-      auto size = api->tableAt(table, "size")->payload.seqValue;
-      this->_width = size.elements[0].payload.intValue;
-      this->_height = size.elements[1].payload.intValue;
+      region._name = api->tableAt(table, "name")->payload.stringValue;
+      region._index = api->tableAt(table, "index")->payload.intValue;
+      region._rotation =
+          api->tableAt(table, "rotation")->payload.boolValue ? 90 : 0;
 
-      this->_format = api->tableAt(table, "format")->payload.stringValue;
-
-      auto filter = api->tableAt(table, "filter")->payload.seqValue;
-      this->_minFilter = filter.elements[0].payload.stringValue;
-      this->_magFilter = filter.elements[1].payload.stringValue;
-
-      auto repeat = api->tableAt(table, "repeat")->payload.seqValue;
-      this->_u_repeat = repeat.elements[0].payload.stringValue;
-      this->_v_repeat = repeat.elements[1].payload.stringValue;
-
-      this->_premultiply = api->tableAt(table, "pma")->payload.boolValue;
-
-      auto regions = api->tableAt(table, "regions")->payload.seqValue;
-      this->_regions.reserve(regions.len);
-      for (uint32_t i = 0; i < regions.len; ++i) {
-        auto table = regions.elements[i].payload.tableValue;
-        auto api = table.api;
-
-        auto region = Region{};
-
-        region._name = api->tableAt(table, "name")->payload.stringValue;
-        region._index = api->tableAt(table, "index")->payload.intValue;
-        region._rotation =
-            api->tableAt(table, "rotation")->payload.boolValue ? 90 : 0;
-
-        auto bounds = api->tableAt(table, "bounds")->payload.seqValue;
-        for (uint32_t j = 0; j < bounds.len && j < 4; ++j) {
-          region._bounds[j] = bounds.elements[j].payload.intValue;
-        }
-
-        auto offsets = api->tableAt(table, "offsets")->payload.seqValue;
-        for (uint32_t j = 0; j < offsets.len && j < 4; ++j) {
-          region._offsets[j] = offsets.elements[j].payload.intValue;
-        }
-
-        auto pad = api->tableAt(table, "pad")->payload.seqValue;
-        for (uint32_t j = 0; j < pad.len && j < 4; ++j) {
-          region._pad[j] = pad.elements[j].payload.intValue;
-        }
-
-        auto split = api->tableAt(table, "split")->payload.seqValue;
-        for (uint32_t j = 0; j < split.len && j < 4; ++j) {
-          region._split[j] = split.elements[j].payload.intValue;
-        }
-
-        this->_regions.push_back(region);
+      auto bounds = api->tableAt(table, "bounds")->payload.seqValue;
+      for (uint32_t j = 0; j < bounds.len && j < 4; ++j) {
+        region._bounds[j] = bounds.elements[j].payload.intValue;
       }
 
-      auto dummy = 0;
+      auto offsets = api->tableAt(table, "offsets")->payload.seqValue;
+      for (uint32_t j = 0; j < offsets.len && j < 4; ++j) {
+        region._offsets[j] = offsets.elements[j].payload.intValue;
+      }
+
+      auto pad = api->tableAt(table, "pad")->payload.seqValue;
+      for (uint32_t j = 0; j < pad.len && j < 4; ++j) {
+        region._pad[j] = pad.elements[j].payload.intValue;
+      }
+
+      auto split = api->tableAt(table, "split")->payload.seqValue;
+      for (uint32_t j = 0; j < split.len && j < 4; ++j) {
+        region._split[j] = split.elements[j].payload.intValue;
+      }
+
+      this->_regions.push_back(region);
     }
 
+    // FIXME: shoudl we cleanup _atlas here since data has been extracted?
     return Var::Object(this, CoreCC, SheetCC);
+  }
+
+  CBImage getSprite(CBInt2 range) {
+    // TODO: ideally we should reuse only one texture with diff coordinates and not copy that image data
+    CBImage result{};
+
+    auto image = _image.get().payload.imageValue;
+    auto start = range[0];
+    auto end = range[1];
+
+    // TODO: need a time component to determine which index to use (for now use the first one).
+    auto region = &_regions[start];
+    result.channels = image.channels; // FIXME: is that the pixel format?
+    result.flags = image.flags; // FIXME: what are flags?
+    result.width = region->_offsets[2];
+    result.height = region->_offsets[3];
+    auto data = new uint8_t[result.width*result.height*3]; // FIXME: obviously incorrect (need pixel size)
+    // TODO: copy from source data
+    result.data = data;
+
+    return result;
   }
 
 private:
@@ -136,6 +151,8 @@ private:
   // params
   ParamVar _atlas{};
   ParamVar _image{};
+
+  // FIXME: should those fields be public?
 
   struct Region {
     std::string _name; // FIXME: might not be needed (or only for debug)
@@ -170,20 +187,58 @@ struct Draw {
 
   static CBParametersInfo parameters() { return _params; }
 
-  CBVar getParam(int index) {
-    // FIXME
-    return Var::Empty;
+  void setParam(int index, const CBVar &value) {
+    switch (index) {
+    case 0:
+      _range = value;
+      break;
+    case 1:
+      _repeat = value;
+      break;
+    case 2:
+      _speed = value;
+      break;
+    case 3:
+      _playFromStart = value;
+      break;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
   }
 
-  void setParam(int index, const CBVar &value) {
-    // FIXME
+  CBVar getParam(int index) {
+    switch (index) {
+    case 0:
+      return _range;
+    case 1:
+      return _repeat;
+    case 2:
+      return _speed;
+    case 3:
+      return _playFromStart;
+    }
+    throw CBException("Parameter out of range.");
+  }
+
+  void cleanup() {
+    _range.cleanup();
+    _repeat.cleanup();
+    _speed.cleanup();
+    _playFromStart.cleanup();
+  }
+
+  void warmup(CBContext *context) {
+    _range.warmup(context);
+    _repeat.warmup(context);
+    _speed.warmup(context);
+    _playFromStart.warmup(context);
   }
 
   CBVar activate(CBContext *context, const CBVar &input) {
-    CBVar result{};
-    // TODO: build the texture based on the sheet image, sheet data and the
-    // range (i.e. sprite region indices)
-    return result;
+    auto sheet = (Sheet*)input.payload.objectValue;
+
+    return Var(sheet->getSprite(_range.get().payload.int2Value));
   }
 
 private:
@@ -194,6 +249,12 @@ private:
       {"PlayFromStart",
        CBCCSTR("TODO"),
        {CoreInfo::BoolType, CoreInfo::BoolVarType}}};
+
+  // params
+  ParamVar _range{};
+  ParamVar _repeat{};
+  ParamVar _speed{};
+  ParamVar _playFromStart{};
 };
 
 void registerBlocks() {
