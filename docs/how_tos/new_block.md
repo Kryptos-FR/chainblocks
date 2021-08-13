@@ -46,5 +46,14 @@ TODO
 
 ### Debugging tricks
 
+GDB:
 p value
 p value.valueType
+
+
+----
+
+other topics:
+- dealing with variables
+- dealing with table API
+

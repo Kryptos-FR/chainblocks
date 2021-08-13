@@ -6,7 +6,19 @@
   (Sprite.Sheet
    :Image .image
    :Atlas .atlas) = .sheet
-  .sheet (Sprite.Draw))
+  .sheet (Sprite.Draw :Range (Int2 0 0) :Repeat false :PlayFromStart false :Speed 0.0))
 
-(schedule main sprite_test)
+  (defloop run-loop
+  (Setup
+   (LoadImage "data/skeleton.png") (GFX.Texture2D) = .image
+   (read-string (slurp "data/skeleton.edn")) = .atlas
+   (Sprite.Sheet
+    :Image .image ; this is a CBType::Object (get inspiration from model)
+    :Atlas .atlas) = .sheet)
+  (GFX.CameraOrtho)
+  ; this runs every frame
+  ; .position is a matrix [4x4]
+  [(Float4 0 1 2 4) (Float4 0 1 2 4) (Float4 0 1 2 4) (Float4 0 1 2 4)] (Sprite.Draw :Sheet .sheet :Range (Int2 0 0) :Repeat false :PlayFromStart false :Speed 0.0))
+
+(schedule main run-loop)
 (run main)

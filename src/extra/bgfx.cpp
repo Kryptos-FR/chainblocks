@@ -857,6 +857,7 @@ struct MainWindow : public BaseWindow {
     assert(viewId == 0); // always 0 in MainWindow
 
     // create time uniform
+    // Delta T of render
     _timeUniformHandle =
         bgfx::createUniform("u_private_time4", bgfx::UniformType::Vec4, 1);
     _deltaTimer.Start = std::chrono::high_resolution_clock::now();
@@ -1257,6 +1258,7 @@ template <char SHADER_TYPE> struct Shader : public BaseConsumer {
   }
 };
 
+// this is a block that allows you to create models from EDN/Code
 struct Model : public BaseConsumer {
   enum class VertexAttribute {
     Position,  //!< a_position
@@ -2190,6 +2192,7 @@ struct Draw : public BaseConsumer {
     }
   }
 
+  // temporary screen space quad binding on vertex buffer
   void screenSpaceQuad(float width = 1.0f, float height = 1.0f) {
     if (3 ==
         bgfx::getAvailTransientVertexBuffer(3, PosTexCoord0Vertex::ms_layout)) {
@@ -2312,12 +2315,15 @@ struct Draw : public BaseConsumer {
       screenSpaceQuad();
     }
 
+    // for nico screenspace quad render
+
     // set state, (it's auto reset after submit)
     bgfx::setState(state);
 
     auto vtextures = _textures.get();
     if (vtextures.valueType == CBType::Object) {
       auto texture = reinterpret_cast<Texture *>(vtextures.payload.objectValue);
+      // texture setting here
       bgfx::setTexture(0, ctx->getSampler(0), texture->handle);
     } else if (vtextures.valueType == CBType::Seq) {
       auto textures = vtextures.payload.seqValue;

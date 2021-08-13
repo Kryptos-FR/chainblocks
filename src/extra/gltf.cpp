@@ -1652,6 +1652,7 @@ struct Draw : public BGFX::BaseConsumer {
               for (uint32_t i = 0; i < textures.len; i++) {
                 const auto texture = reinterpret_cast<BGFX::Texture *>(
                     textures.elements[i].payload.objectValue);
+                // How to bind texture and sampler
                 bgfx::setTexture(uint8_t(i), ctx->getSampler(i),
                                  texture->handle);
               }

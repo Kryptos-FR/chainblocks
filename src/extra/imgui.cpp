@@ -1578,6 +1578,7 @@ struct Image : public Base {
   CBVar activate(CBContext *context, const CBVar &input) {
     IDContext idCtx(this);
 
+    // Here is to read BGFX::Texture Object
     auto texture = reinterpret_cast<BGFX::Texture *>(input.payload.objectValue);
 
     if (!_trueSize) {

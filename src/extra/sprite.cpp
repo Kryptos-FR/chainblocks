@@ -114,25 +114,28 @@ struct Sheet {
       this->_regions.push_back(region);
     }
 
-    // FIXME: shoudl we cleanup _atlas here since data has been extracted?
+    // FIXME: should we cleanup _atlas here since data has been extracted?
     return Var::Object(this, CoreCC, SheetCC);
   }
 
   CBImage getSprite(CBInt2 range) {
-    // TODO: ideally we should reuse only one texture with diff coordinates and not copy that image data
+    // TODO: ideally we should reuse only one texture with diff coordinates and
+    // not copy that image data
     CBImage result{};
 
     auto image = _image.get().payload.imageValue;
     auto start = range[0];
     auto end = range[1];
 
-    // TODO: need a time component to determine which index to use (for now use the first one).
+    // TODO: need a time component to determine which index to use (for now use
+    // the first one).
     auto region = &_regions[start];
     result.channels = image.channels; // FIXME: is that the pixel format?
-    result.flags = image.flags; // FIXME: what are flags?
+    result.flags = image.flags;       // FIXME: what are flags?
     result.width = region->_offsets[2];
     result.height = region->_offsets[3];
-    auto data = new uint8_t[result.width*result.height*3]; // FIXME: obviously incorrect (need pixel size)
+    auto data = new uint8_t[result.width * result.height *
+                            3]; // FIXME: obviously incorrect (need pixel size)
     // TODO: copy from source data
     result.data = data;
 
@@ -236,7 +239,7 @@ struct Draw {
   }
 
   CBVar activate(CBContext *context, const CBVar &input) {
-    auto sheet = (Sheet*)input.payload.objectValue;
+    auto sheet = (Sheet *)input.payload.objectValue;
 
     return Var(sheet->getSprite(_range.get().payload.int2Value));
   }

@@ -238,7 +238,7 @@
 
                    (GFX.RenderTexture 64 64
                                       (->
-                                       ; full screen quad pass
+                                       ; full screen quad pass RENDER HERE
                                        nil (GFX.CameraOrtho) ; to set only projection
                                        ; no model means full screen quad
                                        identity (GFX.Draw :Shader .shader)))

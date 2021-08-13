@@ -220,7 +220,9 @@ struct Context {
     lightCount = 0;
   }
 
+  // these are the samplers that are used for the current view
   const bgfx::UniformHandle &getSampler(size_t index) {
+    // here we do some caching, so that we don't have to create the sampler
     const auto nsamplers = samplers.size();
     if (index >= nsamplers) {
       std::string name("DrawSampler_");
@@ -248,6 +250,7 @@ private:
   uint32_t lightCount{0};
 };
 
+// Use this as Texture Object
 struct Texture {
   static inline Type ObjType{
       {CBType::Object,
