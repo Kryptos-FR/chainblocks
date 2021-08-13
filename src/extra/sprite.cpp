@@ -3,15 +3,168 @@
 namespace chainblocks {
 namespace Sprite {
 
-struct Draw {
+constexpr uint32_t SheetCC = 'shee';
+
+struct Sheet {
+  static inline Type ObjType{
+      {CBType::Object, {.object = {.vendorId = CoreCC, .typeId = SheetCC}}}};
+  static inline Type VarType = Type::VariableOf(ObjType);
+
+  static inline ObjectVar<Sheet> Var{"Sprite-Sheet", CoreCC, SheetCC};
 
   static CBTypesInfo inputTypes() {
-    // FIXME
+    // FIXME: do we need an input?
     return CoreInfo::AnyType;
   }
 
+  static CBTypesInfo outputTypes() { return Sheet::ObjType; }
+
+  static CBParametersInfo parameters() { return _params; }
+
+  void setParam(int index, const CBVar &value) {
+    switch (index) {
+    case 0:
+      _image = value;
+      break;
+    case 1:
+      _atlas = value;
+      break;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
+  }
+
+  CBVar getParam(int index) {
+    switch (index) {
+    case 0:
+      return _image;
+    case 1:
+      return _atlas;
+    }
+    throw CBException("Parameter out of range.");
+  }
+
+  void cleanup() {
+    _image.cleanup();
+    _atlas.cleanup();
+  }
+
+  void warmup(CBContext *context) {
+    _image.warmup(context);
+    _atlas.warmup(context);
+  }
+
+  CBVar activate(CBContext *context, const CBVar &input) {
+    // read the atlas data
+    if (_atlas.isVariable()) {
+      // FIXME: no idea what to do. How to retrieve the actual value behind the
+      // variable?
+    } else {
+      auto table = _atlas.get().payload.tableValue;
+      auto api = table.api;
+
+      this->_name = api->tableAt(table, "name")->payload.stringValue;
+
+      auto size = api->tableAt(table, "size")->payload.seqValue;
+      this->_width = size.elements[0].payload.intValue;
+      this->_height = size.elements[1].payload.intValue;
+
+      this->_format = api->tableAt(table, "format")->payload.stringValue;
+
+      auto filter = api->tableAt(table, "filter")->payload.seqValue;
+      this->_minFilter = filter.elements[0].payload.stringValue;
+      this->_magFilter = filter.elements[1].payload.stringValue;
+
+      auto repeat = api->tableAt(table, "repeat")->payload.seqValue;
+      this->_u_repeat = repeat.elements[0].payload.stringValue;
+      this->_v_repeat = repeat.elements[1].payload.stringValue;
+
+      this->_premultiply = api->tableAt(table, "pma")->payload.boolValue;
+
+      auto regions = api->tableAt(table, "regions")->payload.seqValue;
+      this->_regions.reserve(regions.len);
+      for (uint32_t i = 0; i < regions.len; ++i) {
+        auto table = regions.elements[i].payload.tableValue;
+        auto api = table.api;
+
+        auto region = Region{};
+
+        region._name = api->tableAt(table, "name")->payload.stringValue;
+        region._index = api->tableAt(table, "index")->payload.intValue;
+        region._rotation =
+            api->tableAt(table, "rotation")->payload.boolValue ? 90 : 0;
+
+        auto bounds = api->tableAt(table, "bounds")->payload.seqValue;
+        for (uint32_t j = 0; j < bounds.len && j < 4; ++j) {
+          region._bounds[j] = bounds.elements[j].payload.intValue;
+        }
+
+        auto offsets = api->tableAt(table, "offsets")->payload.seqValue;
+        for (uint32_t j = 0; j < offsets.len && j < 4; ++j) {
+          region._offsets[j] = offsets.elements[j].payload.intValue;
+        }
+
+        auto pad = api->tableAt(table, "pad")->payload.seqValue;
+        for (uint32_t j = 0; j < pad.len && j < 4; ++j) {
+          region._pad[j] = pad.elements[j].payload.intValue;
+        }
+
+        auto split = api->tableAt(table, "split")->payload.seqValue;
+        for (uint32_t j = 0; j < split.len && j < 4; ++j) {
+          region._split[j] = split.elements[j].payload.intValue;
+        }
+
+        this->_regions.push_back(region);
+      }
+
+      auto dummy = 0;
+    }
+
+    return Var::Object(this, CoreCC, SheetCC);
+  }
+
+private:
+  static inline Parameters _params = {
+      {"Image",
+       CBCCSTR("The image to use with the atlas."),
+       {CoreInfo::ImageType, CoreInfo::ImageVarType}},
+      {"Atlas",
+       CBCCSTR("The atlas definition."),
+       {CoreInfo::AnyTableType, CoreInfo::AnyVarTableType}}};
+
+  // params
+  ParamVar _atlas{};
+  ParamVar _image{};
+
+  struct Region {
+    std::string _name; // FIXME: might not be needed (or only for debug)
+    int16_t _index;    // FIXME: might not be needed (or only for debug)
+    uint16_t _rotation;
+    uint16_t _bounds[4];
+    uint16_t _offsets[4];
+    int16_t _pad[4];
+    uint16_t _split[4];
+  };
+
+  std::string _name; // FIXME: might not be needed (or only for debug)
+  uint16_t _width;
+  uint16_t _height;
+  std::string _format;
+  std::string _minFilter;
+  std::string _magFilter;
+  std::string _u_repeat;
+  std::string _v_repeat;
+  bool _premultiply;
+  std::vector<Region> _regions;
+};
+
+struct Draw {
+
+  static CBTypesInfo inputTypes() { return Sheet::ObjType; }
+
   static CBTypesInfo outputTypes() {
-    // FIXME
+    // FIXME: output is a texture (or an image)?
     return CoreInfo::AnyType;
   }
 
@@ -28,142 +181,19 @@ struct Draw {
 
   CBVar activate(CBContext *context, const CBVar &input) {
     CBVar result{};
+    // TODO: build the texture based on the sheet image, sheet data and the
+    // range (i.e. sprite region indices)
     return result;
   }
 
 private:
   static inline Parameters _params = {
-
-  };
-};
-
-// TODO:
-// store data from the atlas definition
-// pre-allocate 'n' images with correct size
-// for now dummily copy data from the input images into those separate images
-// (while checking that input image is big enough, if not, don't do anything
-// (empty list of images))
-
-struct AtlasPage : TableVar {
-  AtlasPage() : TableVar(), regions(get<SeqVar>(":region")) {}
-
-  AtlasPage(const CBVar &other) : AtlasPage() {
-    chainblocks::cloneVar(*this, other);
-    regions = get<SeqVar>(":region");
-  }
-
-  SeqVar &regions;
-};
-
-struct AtlasRegion {};
-
-struct Sheet {
-
-  static CBTypesInfo inputTypes() {
-    // FIXME
-    return CoreInfo::AnyType;
-  }
-
-  static CBTypesInfo outputTypes() {
-    // FIXME: need to return our data into a variable
-    return CoreInfo::AnyType;
-  }
-
-  static CBParametersInfo parameters() { return _params; }
-
-  CBVar getParam(int index) {
-    switch (index) {
-    case 0:
-      // FIXME
-      // return Var(_images);
-      return Var::Empty;
-    case 1:
-      return Var(_pages);
-    }
-    throw CBException("Parameter out of range.");
-  }
-
-  void setParam(int index, const CBVar &value) {
-    if (value.valueType == CBType::None)
-      return;
-
-    switch (index) {
-    case 0:
-      switch (value.valueType) {
-      case CBType::Seq: {
-        auto count = value.payload.seqValue.len;
-        if (count == 0)
-          break;
-
-        _images.reserve(count);
-        for (uint32_t i = 0; i < count; ++i) {
-          auto element = &value.payload.seqValue.elements[i];
-          _images.push_back(element->payload.imageValue);
-        }
-      } break;
-
-      case CBType::Image:
-        _images.reserve(1);
-        _images.push_back(value.payload.imageValue);
-        break;
-
-      default:
-        break;
-      }
-      break;
-
-    case 1: {
-      switch (value.valueType) {
-      case CBType::Seq: {
-        auto count = value.payload.seqValue.len;
-        if (count == 0)
-          break;
-
-        _pages.reserve(count);
-        for (uint32_t i = 0; i < count; ++i) {
-          auto element = &value.payload.seqValue.elements[i];
-          addPage(element->payload.tableValue);
-        }
-      } break;
-
-      case CBType::Table: {
-        _pages.reserve(1);
-        addPage(value.payload.tableValue);
-      } break;
-
-      default:
-        break;
-      }
-      break;
-    }
-
-    default:
-      break;
-    }
-  }
-
-  void addPage(const CBTable &table) {
-    auto page = AtlasPage(*(CBVar *)&table); // UGLY
-    _pages.push_back(page);
-  }
-
-  CBVar activate(CBContext *context, const CBVar &input) {
-    CBVar result{};
-    return result;
-  }
-
-private:
-  static inline Parameters _params = {
-      // TODO allow ImageVarType, ImageSeqType and ImageVarSeqType
-      {"Image",
-       CBCCSTR("The image to use with the atlas."),
-       {CoreInfo::ImageSeqType, CoreInfo::ImageType}},
-      {"Atlas",
-       CBCCSTR("The atlas definition."),
-       {CoreInfo::AnySeqType, CoreInfo::AnyTableType}}};
-
-  std::vector<CBImage> _images;
-  std::vector<AtlasPage> _pages;
+      {"Range", CBCCSTR("TODO"), {CoreInfo::Int2Type, CoreInfo::Int2VarType}},
+      {"Repeat", CBCCSTR("TODO"), {CoreInfo::BoolType, CoreInfo::BoolVarType}},
+      {"Speed", CBCCSTR("TODO"), {CoreInfo::FloatType, CoreInfo::FloatVarType}},
+      {"PlayFromStart",
+       CBCCSTR("TODO"),
+       {CoreInfo::BoolType, CoreInfo::BoolVarType}}};
 };
 
 void registerBlocks() {
