@@ -1,4 +1,5 @@
 #include "./sprite.hpp"
+#include <bx/math.h>
 
 namespace chainblocks {
 namespace Sprite {
@@ -219,11 +220,10 @@ struct Draw : public BGFX::BaseConsumer {
     auto index = _index.get().payload.intValue;
     const auto &region = sheet->regions[index % sheet->regions.size()];
     bgfx::TransientVertexBuffer vb;
-    // FIXME: bound/size doesn't work if the sprite is rotated
-    createQuad(&vb, region.width / (float)currentView.width,
-               region.height / (float)currentView.height,
+    createQuad(&vb, region.width, region.height,
                Enums::HAlign(_hAlign.payload.enumValue),
                Enums::VAlign(_vAlign.payload.enumValue));
+
     // step: apply texture coordinates
     auto *vertex = (PosTexCoord0Vertex *)vb.data;
     const auto &uvs = region.uvs;
@@ -444,7 +444,100 @@ private:
   OwnedVar _vAlign{};
 };
 
+struct CameraOrtho : public BGFX::CameraBase {
+
+  CBVar activate(CBContext *context, const CBVar &input) {
+    BGFX::Context *ctx =
+        reinterpret_cast<BGFX::Context *>(_bgfxCtx->payload.objectValue);
+
+    auto &currentView = ctx->currentView();
+
+    std::array<float, 16> view;
+    if (input.valueType == CBType::Table) {
+      // this is the most efficient way to find items in table
+      // without hashing and possible allocations etc
+      CBTable table = input.payload.tableValue;
+      CBTableIterator it;
+      table.api->tableGetIterator(table, &it);
+      CBVar position{};
+      CBVar target{};
+      while (true) {
+        CBString k;
+        CBVar v;
+        if (!table.api->tableNext(table, &it, &k, &v))
+          break;
+
+        switch (k[0]) {
+        case 'P':
+          position = v;
+          break;
+        case 'T':
+          target = v;
+          break;
+        default:
+          break;
+        }
+      }
+
+      assert(position.valueType == CBType::Float3 &&
+             target.valueType == CBType::Float3);
+
+      bx::Vec3 *bp =
+          reinterpret_cast<bx::Vec3 *>(&position.payload.float3Value);
+      bx::Vec3 *bt = reinterpret_cast<bx::Vec3 *>(&target.payload.float3Value);
+      bx::mtxLookAt(view.data(), *bp, *bt);
+    }
+
+    int width = _width != 0 ? _width : currentView.width;
+    int height = _height != 0 ? _height : currentView.height;
+
+    const float _near = 0.0;
+    const float _far = 100.0;
+    const float _left = 0.0;
+    const float _right = width;
+    const float _bottom = height;
+    const float _top = 0.0;
+
+    std::array<float, 16> proj;
+    bx::mtxOrtho(proj.data(), _left, _right, _bottom, _top, _near, _far, 0.0,
+                 bgfx::getCaps()->homogeneousDepth, bx::Handness::Right);
+
+    if constexpr (BGFX::CurrentRenderer == BGFX::Renderer::OpenGL) {
+      // workaround for flipped Y render to textures
+      if (currentView.id > 0) {
+        proj[5] = -proj[5];
+        proj[8] = -proj[8];
+        proj[9] = -proj[9];
+      }
+    }
+
+    bgfx::setViewTransform(
+        currentView.id,
+        input.valueType == CBType::Table ? view.data() : nullptr, proj.data());
+    bgfx::setViewRect(currentView.id, uint16_t(_offsetX), uint16_t(_offsetY),
+                      uint16_t(width), uint16_t(height));
+
+    // set viewport params
+    currentView.viewport.x = _offsetX;
+    currentView.viewport.y = _offsetY;
+    currentView.viewport.width = width;
+    currentView.viewport.height = height;
+
+    // populate view matrices
+    if (input.valueType != CBType::Table) {
+      currentView.view = linalg::identity;
+    } else {
+      currentView.view = Mat4::FromArray(view);
+    }
+    currentView.proj = Mat4::FromArray(proj);
+    currentView.invalidate();
+
+    return input;
+  }
+};
+
 void registerBlocks() {
+  REGISTER_CBLOCK("Sprite.CameraOrtho", CameraOrtho);
   REGISTER_CBLOCK("Sprite.Draw", Draw);
   REGISTER_CBLOCK("Sprite.Sheet", Sheet);
 }
