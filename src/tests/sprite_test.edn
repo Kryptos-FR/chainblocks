@@ -14,7 +14,7 @@
    (GFX.Shader :VertexShader .vs-bytes :PixelShader .fs-bytes)))
 (defloop sprite_test
   (GFX.MainWindow
-   :Title "SDL Window" :Width 640 :Height 480 :Debug false :Fullscreen false
+   :Title "SDL Window" :Width 800 :Height 600 :Debug false :Fullscreen false
    :Contents
    ~[(Setup
       (LoadImage "data/skeleton.png") = .image
@@ -23,11 +23,6 @@
       (read-string (slurp "data/skeleton.edn")) = .atlas
       (Sprite.Sheet :Atlas .atlas) = .sheet
       0 >= .index
-      (Float3 0.5 0.5 0.5) (Math.Scaling) = .s
-      (Float3 0.5 0.5 0) (Math.Translation) = .t
-      0.0 (Math.DegreesToRadians) (Math.AxisAngleZ) (Math.Rotation) = .r
-      .t (Math.MatMul .r) (Math.MatMul .s) >= .transform
-      ;identity >= .transform
       (shader
        ; varying info
        "
@@ -62,8 +57,20 @@ void main()
 }
 ") = .shader)
 
-     nil (GFX.CameraOrtho)
-     ; .transform
+     (Time.Now) (Math.Cos) = .cos_t
+     .cos_t (Math.Multiply 60.0) (Math.Add 320.0) = .x
+     [.x, 320.0, 0.0] (ToFloat3) = .position
+     .cos_t (Math.Add 1.0) (Math.Multiply 0.5) = .big
+
+     [.big, .big, .big] (ToFloat3) (Math.Scaling) = .s
+     .position (Math.Translation) = .t
+     .cos_t (Math.AxisAngleZ) (Math.Rotation) = .r
+     .t (Math.MatMul .r) (Math.MatMul .s) = .transform
+
+     (GFX.CurrentViewHeight) (ToFloat) = .height
+     (GFX.CurrentViewWidth) (ToFloat) = .width
+     nil (GFX.CameraOrtho :Right .width :Bottom .height)
+
      .transform
      (Sprite.Draw :Sheet .sheet :Texture .texture :Index .index
                   :HAlign HAlign.Center :VAlign VAlign.Center

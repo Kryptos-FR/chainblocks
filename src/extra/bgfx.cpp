@@ -1868,51 +1868,77 @@ struct Camera : public CameraBase {
 };
 
 struct CameraOrtho : public CameraBase {
-  float _near = 0.0;
-  float _far = 100.0;
-  float _left = 0.0;
-  float _right = 1.0;
-  float _bottom = 1.0;
-  float _top = 0.0;
+  ParamVar _near{Var(0.0)};
+  ParamVar _far{Var(100.0)};
+  ParamVar _left{Var(0.0)};
+  ParamVar _right{Var(1.0)};
+  ParamVar _bottom{Var(1.0)};
+  ParamVar _top{Var(0.0)};
 
   static inline Parameters params{
-      {{"Left", CBCCSTR("The left of the projection."), {CoreInfo::FloatType}},
+      {{"Left",
+        CBCCSTR("The left of the projection."),
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}},
        {"Right",
         CBCCSTR("The right of the projection."),
-        {CoreInfo::FloatType}},
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}},
        {"Bottom",
         CBCCSTR("The bottom of the projection."),
-        {CoreInfo::FloatType}},
-       {"Top", CBCCSTR("The top of the projection."), {CoreInfo::FloatType}},
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}},
+       {"Top",
+        CBCCSTR("The top of the projection."),
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}},
        {"Near",
         CBCCSTR("The distance from the near clipping plane."),
-        {CoreInfo::FloatType}},
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}},
        {"Far",
         CBCCSTR("The distance from the far clipping plane."),
-        {CoreInfo::FloatType}}},
+        {CoreInfo::FloatType, CoreInfo::FloatVarType}}},
       CameraBase::params};
 
   static CBParametersInfo parameters() { return params; }
 
+  void warmup(CBContext *context) {
+    BaseConsumer::warmup(context);
+
+    _near.warmup(context);
+    _far.warmup(context);
+    _left.warmup(context);
+    _right.warmup(context);
+    _bottom.warmup(context);
+    _top.warmup(context);
+  }
+
+  void cleanup() {
+    _near.cleanup();
+    _far.cleanup();
+    _left.cleanup();
+    _right.cleanup();
+    _bottom.cleanup();
+    _top.cleanup();
+
+    BaseConsumer::cleanup();
+  }
+
   void setParam(int index, const CBVar &value) {
     switch (index) {
     case 0:
-      _left = float(value.payload.floatValue);
+      _left = value;
       break;
     case 1:
-      _right = float(value.payload.floatValue);
+      _right = value;
       break;
     case 2:
-      _bottom = float(value.payload.floatValue);
+      _bottom = value;
       break;
     case 3:
-      _top = float(value.payload.floatValue);
+      _top = value;
       break;
     case 4:
-      _near = float(value.payload.floatValue);
+      _near = value;
       break;
     case 5:
-      _far = float(value.payload.floatValue);
+      _far = value;
       break;
     default:
       CameraBase::setParam(index - 6, value);
@@ -1922,17 +1948,17 @@ struct CameraOrtho : public CameraBase {
   CBVar getParam(int index) {
     switch (index) {
     case 0:
-      return Var(_left);
+      return _left;
     case 1:
-      return Var(_right);
+      return _right;
     case 2:
-      return Var(_bottom);
+      return _bottom;
     case 3:
-      return Var(_top);
+      return _top;
     case 4:
-      return Var(_near);
+      return _near;
     case 5:
-      return Var(_far);
+      return _far;
     default:
       return CameraBase::getParam(index - 6);
     }
@@ -1981,10 +2007,16 @@ struct CameraOrtho : public CameraBase {
 
     int width = _width != 0 ? _width : currentView.width;
     int height = _height != 0 ? _height : currentView.height;
+    const auto __near = _near.get().payload.floatValue;
+    const float __far = _far.get().payload.floatValue;
+    const float __left = _left.get().payload.floatValue;
+    const float __right = _right.get().payload.floatValue;
+    const float __bottom = _bottom.get().payload.floatValue;
+    const float __top = _top.get().payload.floatValue;
 
     std::array<float, 16> proj;
-    bx::mtxOrtho(proj.data(), _left, _right, _bottom, _top, _near, _far, 0.0,
-                 bgfx::getCaps()->homogeneousDepth, bx::Handness::Right);
+    bx::mtxOrtho(proj.data(), __left, __right, __bottom, __top, __near, __far,
+                 0.0, bgfx::getCaps()->homogeneousDepth, bx::Handness::Right);
 
     if constexpr (CurrentRenderer == Renderer::OpenGL) {
       // workaround for flipped Y render to textures
@@ -2881,6 +2913,24 @@ struct CompileShader {
   }
 };
 
+template <int32_t PROPERTY_NAME>
+struct CurrentViewProperty : public BaseConsumer {
+  static CBTypesInfo inputTypes() { return CoreInfo::NoneType; }
+  static CBTypesInfo outputTypes() { return CoreInfo::IntType; }
+
+  CBVar activate(CBContext *context, const CBVar &input) {
+    auto *ctx = reinterpret_cast<Context *>(_bgfxCtx->payload.objectValue);
+    const auto &currentView = ctx->currentView();
+    if constexpr (PROPERTY_NAME == 'height') {
+      return Var(currentView.height);
+    } else if constexpr (PROPERTY_NAME == 'width') {
+      return Var(currentView.width);
+    }
+
+    return Var(0);
+  }
+};
+
 void registerBGFXBlocks() {
   REGISTER_CBLOCK("GFX.MainWindow", MainWindow);
   REGISTER_CBLOCK("GFX.Texture2D", Texture2D);
@@ -2897,6 +2947,10 @@ void registerBGFXBlocks() {
   REGISTER_CBLOCK("GFX.Screenshot", Screenshot);
   REGISTER_CBLOCK("GFX.Unproject", Unproject);
   REGISTER_CBLOCK("GFX.CompileShader", CompileShader);
+  using CurrentViewHeight = CurrentViewProperty<'height'>;
+  REGISTER_CBLOCK("GFX.CurrentViewHeight", CurrentViewHeight);
+  using CurrentViewWidth = CurrentViewProperty<'width'>;
+  REGISTER_CBLOCK("GFX.CurrentViewWidth", CurrentViewWidth);
 }
 }; // namespace BGFX
 

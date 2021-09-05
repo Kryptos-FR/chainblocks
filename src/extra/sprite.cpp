@@ -219,9 +219,7 @@ struct Draw : public BGFX::BaseConsumer {
     auto index = _index.get().payload.intValue;
     const auto &region = sheet->regions[index % sheet->regions.size()];
     bgfx::TransientVertexBuffer vb;
-    // FIXME: bound/size doesn't work if the sprite is rotated
-    createQuad(&vb, region.width / (float)currentView.width,
-               region.height / (float)currentView.height,
+    createQuad(&vb, region.width, region.height,
                Enums::HAlign(_hAlign.payload.enumValue),
                Enums::VAlign(_vAlign.payload.enumValue));
     // step: apply texture coordinates
