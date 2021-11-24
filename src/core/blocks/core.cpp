@@ -761,15 +761,21 @@ struct Map {
   void cleanup() { _blocks.cleanup(); }
 
   CBVar activate(CBContext *context, const CBVar &input) {
+    auto size = input.payload.seqValue.len;
+    arrayResize(_output.payload.seqValue, size);
+
+    uint32_t i;
     CBVar output{};
-    arrayResize(_output.payload.seqValue, 0);
-    for (auto &item : input) {
+    for (i = 0; i < size; ++i) {
+      auto &item = input.payload.seqValue.elements[i];
       // handle return short circuit, assume it was for us
       auto state = _blocks.activate<true>(context, item, output);
       if (state != CBChainState::Continue)
         break;
-      arrayPush(_output.payload.seqValue, output);
+      chainblocks::cloneVar(_output.payload.seqValue.elements[i], output);
     }
+    // fixup the length as it could have been short-circuited
+    _output.payload.seqValue.len = i;
     return _output;
   }
 
