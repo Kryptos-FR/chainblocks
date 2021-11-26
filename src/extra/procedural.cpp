@@ -9,6 +9,7 @@ using namespace chainblocks;
 namespace chainblocks {
 // TODO! should we name it "Shape" instead?
 namespace Procedural {
+const double PI = 3.141592653589793238463;
 
 // note: copied from bgfx.cpp, should be shared at some point
 static inline Types VerticesSeqTypes{{CoreInfo::FloatType, CoreInfo::Float2Type,
@@ -76,8 +77,158 @@ private:
   }
 };
 
+struct Cylinder : public Base {
+
+  static CBParametersInfo parameters() { return _params; }
+
+  void setParam(int index, const CBVar &value) {
+    switch (index) {
+    case 0:
+      _tessellation = value;
+      break;
+    case 1:
+      _height = value;
+      break;
+    case 2:
+      _radius = value;
+      break;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
+  }
+
+  CBVar getParam(int index) {
+    switch (index) {
+    case 0:
+      return _tessellation;
+    case 1:
+      return _height;
+    case 2:
+      return _radius;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
+  }
+
+  void cleanup() {
+    _tessellation.cleanup();
+    _height.cleanup();
+    _radius.cleanup();
+  }
+
+  void warmup(CBContext *context) {
+    _tessellation.warmup(context);
+    _height.warmup(context);
+    _radius.warmup(context);
+  }
+
+  CBVar activate(CBContext *context, const CBVar &input) {
+    // params
+    float height = _height.get().payload.floatValue;
+    float radius = _radius.get().payload.floatValue;
+    int tessellation = _tessellation.get().payload.intValue;
+
+    if (tessellation < 3)
+      tessellation = 3;
+
+    _indices.clear();
+    _vertices.clear();
+    _indices.reserve(4 * tessellation - 2);
+    _vertices.reserve(4 * tessellation + 2);
+
+    height /= 2;
+
+    auto topOffset = linalg::aliases::float3{0.0f, height, 0.0f};
+
+    auto stride = tessellation + 1;
+
+    // Create a ring of triangles around the outside of the cylinder.
+    for (auto i = 0; i <= tessellation; i++) {
+      auto normal = circleVector(i, tessellation);
+
+      auto sideOffset = linalg::cmul(normal, radius);
+      auto plus = sideOffset + topOffset;
+      auto minus = sideOffset - topOffset;
+
+      _vertices.push_back(Var(plus.x, plus.y, plus.z));
+      _vertices.push_back(Var(minus.x, minus.y, minus.z));
+
+      _indices.push_back(Var(i * 2, (i * 2 + 2) % (stride * 2), i * 2 + 1));
+      _indices.push_back(Var(i * 2 + 1, (i * 2 + 2) % (stride * 2),
+                             (i * 2 + 3) % (stride * 2)));
+    }
+
+    // Create flat triangle fan caps to seal the top and bottom.
+    cylinderCap(_indices, _vertices, tessellation, height, radius, true);
+    cylinderCap(_indices, _vertices, tessellation, height, radius, false);
+
+    _outputTable["Indices"] = Var(_indices);
+    _outputTable["Vertices"] = Var(_vertices);
+    return _outputTable;
+  }
+
+private:
+  const linalg::aliases::float3 circleVector(int i, int tessellation) {
+    auto angle = (i * 2.0f * PI / tessellation);
+    auto dx = __builtin_sinf(angle);
+    auto dz = __builtin_cosf(angle);
+
+    return linalg::aliases::float3{dx, 0.0f, dz};
+  }
+
+  void cylinderCap(std::vector<Var> &indices, std::vector<Var> &vertices,
+                   int tessellation, float height, float radius, bool isTop) {
+    // Create cap indices.
+    for (int i = 0; i < tessellation - 2; i++) {
+      int i1 = (i + 1) % tessellation;
+      int i2 = (i + 2) % tessellation;
+
+      if (isTop) {
+        std::swap(i1, i2);
+      }
+
+      int vbase = vertices.size();
+      indices.push_back(Var(vbase, vbase + i1, vbase + i2));
+    }
+
+    // Which end of the cylinder is this?
+    auto normal = linalg::aliases::float3{0.0f, 1.0f, 0.0f};
+
+    if (!isTop) {
+      normal = -normal;
+    }
+
+    // Create cap vertices.
+    for (int i = 0; i < tessellation; i++) {
+      auto circle = circleVector(i, tessellation);
+      auto position = (circle * radius) + (normal * height);
+
+      vertices.push_back(Var(position.x, position.y, position.z));
+    }
+  }
+
+  static inline Parameters _params = {
+      {"Tessellation",
+       CBCCSTR("TODO!"),
+       {CoreInfo::IntType, CoreInfo::IntVarType}},
+      {"Height",
+       CBCCSTR("TODO!"),
+       {CoreInfo::FloatType, CoreInfo::FloatVarType}},
+      {"Radius",
+       CBCCSTR("TODO!"),
+       {CoreInfo::FloatType, CoreInfo::FloatVarType}},
+  };
+
+  ParamVar _height{Var(1.0f)};
+  ParamVar _radius{Var(0.5f)};
+  ParamVar _tessellation{Var(8)};
+};
+
 void registerBlocks() {
   REGISTER_CBLOCK("Shape.Cube", Cube);
+  REGISTER_CBLOCK("Shape.Cylinder", Cylinder);
 }
 }; // namespace Procedural
 }; // namespace chainblocks
