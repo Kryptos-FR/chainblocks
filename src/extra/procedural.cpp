@@ -226,9 +226,145 @@ private:
   ParamVar _tessellation{Var(8)};
 };
 
+struct Sphere : public Base {
+  static CBParametersInfo parameters() { return _params; }
+
+  void setParam(int index, const CBVar &value) {
+    switch (index) {
+    case 0:
+      _tessellation = value;
+      break;
+    case 1:
+      _radius = value;
+      break;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
+  }
+
+  CBVar getParam(int index) {
+    switch (index) {
+    case 0:
+      return _tessellation;
+    case 1:
+      return _radius;
+
+    default:
+      throw CBException("Parameter out of range.");
+    }
+  }
+
+  void cleanup() {
+    _tessellation.cleanup();
+    _radius.cleanup();
+  }
+
+  void warmup(CBContext *context) {
+    _tessellation.warmup(context);
+    _radius.warmup(context);
+  }
+
+  CBVar activate(CBContext *context, const CBVar &input) {
+    // params
+    float radius = _radius.get().payload.floatValue;
+    int tessellation = _tessellation.get().payload.intValue;
+
+    if (tessellation < 3)
+      tessellation = 3;
+
+    auto verticalSegments = tessellation;
+    auto horizontalSegments = tessellation * 2;
+
+    _indices.resize(verticalSegments * (horizontalSegments + 1) * 2);
+    _vertices.resize((verticalSegments + 1) * (horizontalSegments + 1));
+
+    auto vertexCount = 0;
+
+    // generate the first extremity points
+    for (auto j = 0; j <= horizontalSegments; j++) {
+      auto normal = linalg::aliases::float3{0.0f, -1.0f, 0.0f};
+      auto vertex = normal * radius;
+      _vertices[vertexCount++] = Var(vertex.x, vertex.y, vertex.z);
+    }
+
+    // Create rings of vertices at progressively higher latitudes.
+    for (auto i = 1; i < verticalSegments; i++) {
+      auto latitude = float((i * PI / verticalSegments) - PI / 2.0);
+      auto dy = __builtin_sinf(latitude);
+      auto dxz = __builtin_cosf(latitude);
+
+      // the first point
+      auto firstNormal = linalg::aliases::float3{0, dy, dxz};
+      auto firstHVertex = firstNormal * radius;
+      _vertices[vertexCount++] =
+          Var(firstHVertex.x, firstHVertex.y, firstHVertex.z);
+
+      // Create a single ring of vertices at this latitude.
+      for (auto j = 1; j < horizontalSegments; j++) {
+        auto longitude = float(j * 2.0 * PI / horizontalSegments);
+        auto dx = __builtin_sinf(longitude);
+        auto dz = __builtin_cosf(longitude);
+
+        dx *= dxz;
+        dz *= dxz;
+
+        auto normal = linalg::aliases::float3{dx, dy, dz};
+        auto vertex = normal * radius;
+        _vertices[vertexCount++] = Var(vertex.x, vertex.y, vertex.z);
+      }
+
+      // the last point equal to the first point
+      _vertices[vertexCount++] =
+          Var(firstHVertex.x, firstHVertex.y, firstHVertex.z);
+    }
+
+    // generate the end extremity points
+    for (auto j = 0; j <= horizontalSegments; j++) {
+      auto normal = linalg::aliases::float3{0.0f, 1.0f, 0.0f};
+      auto vertex = normal * radius;
+      _vertices[vertexCount++] = Var(vertex.x, vertex.y, vertex.z);
+    }
+
+    // Fill the index buffer with triangles joining each pair of latitude rings.
+    auto stride = horizontalSegments + 1;
+
+    auto indexCount = 0;
+    for (auto i = 0; i < verticalSegments; i++) {
+      for (auto j = 0; j <= horizontalSegments; j++) {
+        auto nextI = i + 1;
+        auto nextJ = (j + 1) % stride;
+
+        _indices[indexCount++] =
+            Var(i * stride + j, nextI * stride + j, i * stride + nextJ);
+        _indices[indexCount++] =
+            Var(i * stride + nextJ, nextI * stride + j, nextI * stride + nextJ);
+      }
+    }
+
+    _outputTable["Indices"] = Var(_indices);
+    _outputTable["Vertices"] = Var(_vertices);
+    return _outputTable;
+  }
+
+private:
+  static inline Parameters _params = {
+      {"Tessellation",
+       CBCCSTR("TODO!"),
+       {CoreInfo::IntType, CoreInfo::IntVarType}},
+      {"Radius",
+       CBCCSTR("TODO!"),
+       {CoreInfo::FloatType, CoreInfo::FloatVarType}},
+  };
+
+  ParamVar _radius{Var(0.5f)};
+  ParamVar _tessellation{Var(8)};
+};
+
 void registerBlocks() {
   REGISTER_CBLOCK("Shape.Cube", Cube);
   REGISTER_CBLOCK("Shape.Cylinder", Cylinder);
+  REGISTER_CBLOCK("Shape.Sphere", Sphere);
 }
 }; // namespace Procedural
 }; // namespace chainblocks
