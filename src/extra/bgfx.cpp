@@ -1425,7 +1425,7 @@ struct Model : public BaseConsumer {
       {CoreInfo::FloatType, CoreInfo::Float2Type, CoreInfo::Float3Type,
        CoreInfo::ColorType, CoreInfo::IntType}};
   static inline Type VerticesSeq = Type::SeqOf(VerticesSeqTypes);
-  // TODO support other topologies then triangle list
+  // TODO support other topologies than triangle list
   static inline Types IndicesSeqTypes{{CoreInfo::Int3Type}};
   static inline Type IndicesSeq = Type::SeqOf(IndicesSeqTypes);
   static inline Types InputTableTypes{{VerticesSeq, IndicesSeq}};

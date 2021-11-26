@@ -319,6 +319,7 @@ set(
   ${CHAINBLOCKS_DIR}/src/extra/bgfx.hpp
   ${CHAINBLOCKS_DIR}/src/extra/gizmo.cpp
   ${CHAINBLOCKS_DIR}/src/extra/gizmo.hpp
+  ${CHAINBLOCKS_DIR}/src/extra/procedural.cpp
   ${CHAINBLOCKS_DIR}/src/extra/imgui.cpp
   ${CHAINBLOCKS_DIR}/src/extra/imgui.hpp
   ${CHAINBLOCKS_DIR}/src/extra/runtime.cpp
@@ -807,6 +808,7 @@ if(NOT BUILD_CORE_ONLY)
     ${CHAINBLOCKS_DIR}/src/extra/bgfx.cpp
     ${CHAINBLOCKS_DIR}/src/extra/bgfx.shaderc.cpp
     ${CHAINBLOCKS_DIR}/src/extra/gizmo.cpp
+    ${CHAINBLOCKS_DIR}/src/extra/procedural.cpp
     ${CHAINBLOCKS_DIR}/src/extra/imgui.cpp
     ${CHAINBLOCKS_DIR}/src/extra/xr.cpp
     ${CHAINBLOCKS_DIR}/src/extra/dsp.cpp

@@ -24,6 +24,10 @@ namespace Gizmo {
 extern void registerGizmoBlocks();
 }
 
+namespace Procedural {
+extern void registerBlocks();
+}
+
 namespace Snappy {
 extern void registerBlocks();
 }
@@ -69,6 +73,7 @@ void cbInitExtras() {
   BGFX::registerBGFXBlocks();
   chainblocks::ImGui::registerImGuiBlocks();
   chainblocks::Gizmo::registerGizmoBlocks();
+  Procedural::registerBlocks();
   XR::registerBlocks();
   gltf::registerBlocks();
   Inputs::registerBlocks();
